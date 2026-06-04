@@ -1,0 +1,6 @@
+.tools/
+dist/
+release/
+*.exe
+*.log
+coverage.out

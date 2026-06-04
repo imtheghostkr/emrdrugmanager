@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Drug Storage Bridge</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <a class="skipLink" href="#mainContent">본문으로 이동</a>
+  <header>
+    <div>
+      <h1>Drug Storage Bridge</h1>
+      <p id="statusLine">초기화 중</p>
+    </div>
+    <span id="securityBadge" class="badge">확인 중</span>
+  </header>
+
+  <main id="mainContent">
+    <section id="setupPanel" class="panel hidden">
+      <h2>DB 연결 설정</h2>
+      <div class="warning">
+        PostgreSQL 읽기 전용 계정만 저장하세요. 관리자 계정은 저장이 차단됩니다.
+      </div>
+      <div class="grid">
+        <label>Host <input id="dbHost" name="dbHost" value="127.0.0.1" autocomplete="off" spellcheck="false" /></label>
+        <label>Port <input id="dbPort" name="dbPort" type="number" value="5432" inputmode="numeric" autocomplete="off" /></label>
+        <label>Database <input id="dbName" name="dbName" value="postgres" autocomplete="off" spellcheck="false" /></label>
+        <label>User <input id="dbUser" name="dbUser" placeholder="eghis_drug_ro" autocomplete="off" spellcheck="false" /></label>
+        <label>Password <input id="dbPassword" name="dbPassword" type="password" autocomplete="new-password" /></label>
+        <label>SSL mode
+          <select id="sslMode" name="sslMode">
+            <option value="disable">disable</option>
+            <option value="prefer">prefer</option>
+            <option value="require">require</option>
+          </select>
+        </label>
+      </div>
+      <div class="actions">
+        <button id="testConnectionBtn">연결 테스트</button>
+        <button id="saveSetupBtn" class="primary">저장</button>
+      </div>
+      <pre id="setupResult"></pre>
+    </section>
+
+    <section id="appPanel" class="hidden">
+      <nav class="tabs">
+        <button data-tab="dashboard" class="active">요약</button>
+        <button data-tab="search">약품 검색</button>
+        <button data-tab="stocks">재고 조회</button>
+        <button data-tab="usage">처방량 통계</button>
+        <button data-tab="codeLookup">코드별 조회</button>
+        <button data-tab="plan">주문 계획</button>
+        <button data-tab="settings">설정</button>
+      </nav>
+
+      <section id="dashboard" class="tabPanel">
+        <div class="cards">
+          <div class="card"><span>Adapter</span><strong id="adapterName">-</strong></div>
+          <div class="card"><span>DB</span><strong id="dbSummary">-</strong></div>
+          <div class="card"><span>권한</span><strong id="roleSummary">-</strong></div>
+        </div>
+      </section>
+
+      <section id="search" class="tabPanel hidden">
+        <h2>약품 검색</h2>
+        <div class="inline">
+          <input id="drugQuery" name="drugQuery" placeholder="약품명, 성분명, 약품코드" autocomplete="off" spellcheck="false" />
+          <button id="drugSearchBtn">검색</button>
+        </div>
+        <div id="drugResults"></div>
+      </section>
+
+      <section id="stocks" class="tabPanel hidden">
+        <h2>현재 재고량</h2>
+        <div class="actions">
+          <button id="loadStocksBtn" class="primary">전체 재고 조회</button>
+        </div>
+        <p id="stocksStatus" class="muted"></p>
+        <div id="stocksResults"></div>
+      </section>
+
+      <section id="usage" class="tabPanel hidden">
+        <h2>처방량 통계</h2>
+        <div class="grid compact">
+          <label>최근 일수 <input id="usageDays" type="number" value="365" /></label>
+          <label>시작일 <input id="usageFrom" name="usageFrom" placeholder="YYYYMMDD" autocomplete="off" inputmode="numeric" /></label>
+          <label>종료일 <input id="usageTo" name="usageTo" placeholder="YYYYMMDD" autocomplete="off" inputmode="numeric" /></label>
+        </div>
+        <div class="actions">
+          <button id="loadUsageBtn" class="primary">처방량 조회</button>
+        </div>
+        <p id="usageStatus" class="muted"></p>
+        <div id="usageResults"></div>
+      </section>
+
+      <section id="codeLookup" class="tabPanel hidden">
+        <h2>사용자 코드별 조회</h2>
+        <div class="grid compact">
+          <label>사용자 코드 <input id="userCode" name="userCode" placeholder="예: 621801760" autocomplete="off" spellcheck="false" /></label>
+          <label>최근 일수 <input id="codeUsageDays" type="number" value="365" /></label>
+          <label>시작일 <input id="codeUsageFrom" name="codeUsageFrom" placeholder="YYYYMMDD" autocomplete="off" inputmode="numeric" /></label>
+          <label>종료일 <input id="codeUsageTo" name="codeUsageTo" placeholder="YYYYMMDD" autocomplete="off" inputmode="numeric" /></label>
+        </div>
+        <div class="actions">
+          <button id="loadCodeStockBtn">재고 조회</button>
+          <button id="loadCodeUsageBtn" class="primary">처방량 조회</button>
+        </div>
+        <p id="codeStatus" class="muted"></p>
+        <div id="codeStockResults"></div>
+        <div id="codeUsageResults"></div>
+      </section>
+
+      <section id="plan" class="tabPanel hidden">
+        <h2>주문 계획</h2>
+        <div class="grid compact">
+          <label>처방기간
+            <select id="planPreset" name="planPreset">
+              <option value="90">최근 3개월</option>
+              <option value="30">최근 1개월</option>
+              <option value="180">최근 6개월</option>
+              <option value="365">최근 1년</option>
+              <option value="custom">직접 입력</option>
+            </select>
+          </label>
+          <label>처방 시작일 <input id="fromDate" name="fromDate" placeholder="YYYYMMDD" autocomplete="off" inputmode="numeric" /></label>
+          <label>처방 종료일 <input id="toDate" name="toDate" placeholder="YYYYMMDD" autocomplete="off" inputmode="numeric" /></label>
+          <label>비축 필요일 <input id="targetDays" name="targetDays" type="number" value="45" inputmode="numeric" autocomplete="off" /></label>
+        </div>
+        <div class="checks">
+          <label><input id="groupSameDose" type="checkbox" checked /> 동일성분용량 합산</label>
+          <label><input id="truncateOrderQty" type="checkbox" /> 필요수량 10단위 절삭</label>
+        </div>
+        <div class="actions">
+          <button id="loadPlanBtn" class="primary">계산</button>
+          <button id="downloadPlanBtn">XLSX 다운로드</button>
+        </div>
+        <div id="planSummary" class="cards"></div>
+        <div id="planResults"></div>
+      </section>
+
+      <section id="settings" class="tabPanel hidden">
+        <h2>설정</h2>
+        <div class="warning">
+          0.0.0.0 공개는 원내망 또는 VPN에서만 사용하세요. 공유기 포트포워딩은 금지합니다.
+        </div>
+        <div class="grid compact">
+          <label>접속 범위
+            <select id="serverHost" name="serverHost">
+              <option value="127.0.0.1">현재 PC만</option>
+              <option value="0.0.0.0">다른 PC 접속 허용</option>
+            </select>
+          </label>
+          <label>앱 포트 <input id="serverPort" name="serverPort" type="number" value="3987" inputmode="numeric" autocomplete="off" /></label>
+        </div>
+        <div class="grid">
+          <label>허용 CIDR
+            <textarea id="allowedCidrs" name="allowedCidrs" rows="4" placeholder="예: 192.168.0.0/24"></textarea>
+          </label>
+          <label>접속 토큰
+            <input id="accessToken" name="accessToken" type="password" autocomplete="new-password" placeholder="새 토큰 입력 시 갱신" />
+          </label>
+        </div>
+        <div class="checks">
+          <label><input id="accessTokenRequired" type="checkbox" /> 원격 API 접속 토큰 요구</label>
+        </div>
+        <div class="actions">
+          <button id="saveServerSettingsBtn" class="primary">서버 설정 저장</button>
+        </div>
+        <p id="serverSettingsStatus" class="muted"></p>
+        <button id="resetSetupBtn" class="danger">DB 설정 초기화</button>
+      </section>
+    </section>
+  </main>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>

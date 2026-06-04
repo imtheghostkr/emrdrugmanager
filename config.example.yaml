@@ -1,0 +1,17 @@
+server:
+  host: 127.0.0.1
+  port: 3987
+  access_token_required: false
+  access_token_hash: ""
+  allowed_cidrs: []
+
+emr:
+  adapter: eghis
+
+database:
+  host: 127.0.0.1
+  port: 5432
+  name: postgres
+  user: ""
+  password_ref: ""
+  sslmode: disable
