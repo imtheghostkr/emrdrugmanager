@@ -14,6 +14,37 @@ async function api(path, options = {}) {
   return data;
 }
 
+function filenameFromDisposition(header, fallback) {
+  if (!header) return fallback;
+  const utf8 = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8) return decodeURIComponent(utf8[1].replaceAll("+", "%20"));
+  const quoted = header.match(/filename="([^"]+)"/i);
+  if (quoted) return quoted[1];
+  const plain = header.match(/filename=([^;]+)/i);
+  return plain ? plain[1].trim() : fallback;
+}
+
+async function downloadFile(path, fallbackName) {
+  const headers = {};
+  if (state.setupToken) headers["X-Setup-Token"] = state.setupToken;
+  const res = await fetch(path, { headers });
+  if (!res.ok) {
+    const text = await res.text();
+    let message = text || res.statusText;
+    try { message = JSON.parse(text)?.error || message; } catch {}
+    throw new Error(message);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filenameFromDisposition(res.headers.get("Content-Disposition"), fallbackName);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function formConfig() {
   return {
     adapter: "eghis",
@@ -278,7 +309,13 @@ document.addEventListener("click", async (event) => {
   }
 
   if (event.target.id === "downloadPlanBtn") {
-    window.location.href = `/api/inventory/order-plan.xlsx?${planQuery()}`;
+    setText("planStatus", "XLSX 파일 생성 중...");
+    try {
+      await downloadFile(`/api/inventory/order-plan.xlsx?${planQuery()}`, "drug_order_plan.xlsx");
+      setText("planStatus", "XLSX 다운로드를 시작했습니다.");
+    } catch (err) {
+      setText("planStatus", err.message);
+    }
   }
 });
 

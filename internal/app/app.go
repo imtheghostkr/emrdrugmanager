@@ -566,7 +566,10 @@ func (a *App) handleOrderPlanXLSX(w http.ResponseWriter, r *http.Request, adapte
 		return
 	}
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.Header().Set("Content-Disposition", `attachment; filename="`+export.FileName(plan.From, plan.To)+`"`)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	_, _ = w.Write(data)
 }
 
