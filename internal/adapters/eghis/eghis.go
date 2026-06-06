@@ -7,11 +7,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/imtheghostkr/emrdrugmanager/internal/adapters"
 	"github.com/imtheghostkr/emrdrugmanager/internal/config"
 	"github.com/imtheghostkr/emrdrugmanager/internal/drug"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var requiredTables = []string{
@@ -176,7 +176,7 @@ func (a *Adapter) GetUsage(ctx context.Context, from, to string) ([]drug.UsageRo
 			MAX(COALESCE(d.medfee_nm, h2.medfee_nm, '')) AS name,
 			MAX(COALESCE(d.component, '')) AS component,
 			MAX(COALESCE(d.drug_gb, '')) AS drug_gb,
-			SUM(COALESCE(h2.qty, 0) * COALESCE(h2.days, 0)) AS usage_qty,
+			SUM(CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END) AS usage_qty,
 			COUNT(*) AS order_count,
 			CASE WHEN MAX(n.user_cd) IS NULL THEN '일반약' ELSE '향정/마약류' END AS category
 		FROM h2opd_doct_ord h2
@@ -189,8 +189,7 @@ func (a *Adapter) GetUsage(ctx context.Context, from, to string) ([]drug.UsageRo
 		) n ON h2.ord_ymd = n.ord_ymd AND h2.ord_no = n.ord_no AND h2.ord_seq_no = n.ord_seq_no AND h2.ord_cd = n.user_cd
 		WHERE h2.ord_ymd BETWEEN $1 AND $2
 		  AND h2.ord_cd LIKE '6%'
-		  AND COALESCE(h2.qty, 0) > 0
-		  AND COALESCE(h2.days, 0) > 0
+		  AND (CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END) > 0
 		GROUP BY COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
 	`, from, to)
 	if err != nil {
@@ -217,7 +216,7 @@ func (a *Adapter) GetUsageByCode(ctx context.Context, code, from, to string) (dr
 			COALESCE(MAX(COALESCE(d.medfee_nm, h2.medfee_nm, '')), '') AS name,
 			COALESCE(MAX(COALESCE(d.component, '')), '') AS component,
 			COALESCE(MAX(COALESCE(d.drug_gb, '')), '') AS drug_gb,
-			COALESCE(SUM(COALESCE(h2.qty, 0) * COALESCE(h2.days, 0)), 0) AS usage_qty,
+			COALESCE(SUM(CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END), 0) AS usage_qty,
 			COUNT(*) AS order_count,
 			CASE WHEN MAX(n.user_cd) IS NULL THEN '일반약' ELSE '향정/마약류' END AS category
 		FROM h2opd_doct_ord h2
@@ -230,8 +229,7 @@ func (a *Adapter) GetUsageByCode(ctx context.Context, code, from, to string) (dr
 		) n ON h2.ord_ymd = n.ord_ymd AND h2.ord_no = n.ord_no AND h2.ord_seq_no = n.ord_seq_no AND h2.user_cd = n.user_cd
 		WHERE h2.ord_ymd BETWEEN $2 AND $3
 		  AND (h2.user_cd = $1 OR h2.ord_cd = $1 OR h2.medfee_cd = $1)
-		  AND COALESCE(h2.qty, 0) > 0
-		  AND COALESCE(h2.days, 0) > 0
+		  AND (CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END) > 0
 	`, code, from, to).Scan(&item.Code, &item.Name, &item.Component, &item.DrugType, &item.UsageQty, &item.OrderCount, &item.Category)
 	if err != nil {
 		return drug.UsageRow{}, err

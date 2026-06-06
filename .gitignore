@@ -4,3 +4,4 @@ release/
 *.exe
 *.log
 coverage.out
+doc/*.xlsx
