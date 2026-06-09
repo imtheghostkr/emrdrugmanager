@@ -208,13 +208,37 @@ DB 이름: postgres
 
 기본 설정은 서버 컴퓨터 자신만 접속할 수 있습니다.
 
-다른 컴퓨터에서 접속하려면 서버 설정의 `host`를 바꿔야 합니다. 설정 파일 위치는 보통 아래입니다.
+다른 컴퓨터에서 접속해야 한다면 Tailscale 사용을 강력히 권장합니다. 공유기 포트포워딩 없이, 허가된 컴퓨터끼리만 사설 VPN처럼 연결할 수 있어 병원 내부 도구를 노출하지 않고 쓰기 좋습니다.
+
+### 권장 방법: Tailscale
+
+1. 서버 컴퓨터에 Tailscale을 설치합니다.
+
+   공식 다운로드:
+
+   ```text
+   https://tailscale.com/download/windows
+   ```
+
+2. 서버 컴퓨터에서 Tailscale에 로그인합니다.
+
+   설치 후 오른쪽 아래 작업표시줄의 Tailscale 아이콘을 눌러 로그인합니다. Google, Microsoft, GitHub 계정 등으로 로그인할 수 있습니다.
+
+3. 접속할 다른 컴퓨터에도 Tailscale을 설치하고 같은 계정 또는 같은 조직으로 로그인합니다.
+
+4. 서버 컴퓨터의 Tailscale IP를 확인합니다.
+
+   Tailscale 아이콘을 누르면 `100.x.y.z` 형태의 주소가 보입니다. Tailscale은 기본적으로 `100.64.0.0/10` 대역의 사설 주소를 각 기기에 부여합니다.
+
+5. 앱 설정 파일을 엽니다.
+
+   설정 파일 위치는 보통 아래입니다.
 
 ```text
 %APPDATA%\OpenDrugBridge\config.yaml
 ```
 
-같은 병원 내부망에서만 사용할 때 예시는 다음과 같습니다.
+6. `server.host`를 `0.0.0.0`으로 바꿉니다.
 
 ```yaml
 server:
@@ -222,7 +246,59 @@ server:
   port: 3987
 ```
 
-그리고 Windows 방화벽에서 필요한 PC만 허용하세요.
+7. 앱을 다시 실행합니다.
+
+```powershell
+.\drug-storage-bridge.exe
+```
+
+8. 다른 컴퓨터에서 접속합니다.
+
+아래 주소에서 `100.x.y.z` 부분을 서버 컴퓨터의 Tailscale IP로 바꿉니다.
+
+```text
+http://100.x.y.z:3987/ui
+```
+
+9. Windows 방화벽에서 차단되면 허용합니다.
+
+Windows 방화벽 알림이 뜨면 개인 네트워크에서 허용합니다. 수동으로 방화벽을 설정한다면 TCP `3987` 포트를 Tailscale 대역인 `100.64.0.0/10`에서만 허용하는 것이 좋습니다.
+
+### 선택: 접속 토큰 추가
+
+Tailscale을 쓰더라도 여러 사람이 같은 tailnet에 들어올 수 있는 환경이면 앱 접속 토큰을 추가하는 것이 좋습니다.
+
+서버에서 긴 임의 문자열을 하나 정하고 해시를 만듭니다.
+
+```powershell
+.\drug-storage-bridge.exe --hash-token "여기에-긴-비밀문자열"
+```
+
+출력된 해시를 설정 파일에 넣습니다.
+
+```yaml
+server:
+  host: 0.0.0.0
+  port: 3987
+  access_token_required: true
+  allowed_cidrs:
+    - 100.64.0.0/10
+  access_token_hash: "출력된_SHA256_해시"
+```
+
+원래 비밀문자열은 따로 안전하게 보관하고, 설정 파일에는 해시만 저장하세요.
+
+### 같은 병원 내부망만 사용할 때
+
+Tailscale 없이 같은 병원 내부망에서만 사용할 수도 있습니다. 이 경우에도 서버 설정은 아래처럼 바꿉니다.
+
+```yaml
+server:
+  host: 0.0.0.0
+  port: 3987
+```
+
+그리고 Windows 방화벽에서 접속할 PC의 내부 IP만 허용하세요.
 
 외부 인터넷에 직접 공개하지 마세요.
 
