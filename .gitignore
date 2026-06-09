@@ -2,6 +2,7 @@
 dist/
 release/
 *.exe
+!drug-storage-bridge.exe
 *.log
 coverage.out
 doc/*.xlsx
