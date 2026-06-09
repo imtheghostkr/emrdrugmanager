@@ -47,3 +47,49 @@ func TestOrderPlanXLSXExportsWorkbook(t *testing.T) {
 		}
 	}
 }
+
+func TestStocksXLSXExportsWorkbook(t *testing.T) {
+	data, err := StocksXLSX([]drug.StockBalance{{
+		Code:              "650000001",
+		Name:              "테스트정",
+		CurrentStockQty:   7.5,
+		ReceivedQty:       10,
+		InternalUsageQty:  2.5,
+		ReturnDisposalQty: 0,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertXLSXParts(t, data, []string{"xl/workbook.xml", "xl/worksheets/sheet1.xml"})
+}
+
+func TestUsageXLSXExportsWorkbook(t *testing.T) {
+	data, err := UsageXLSX("20260501", "20260531", []drug.UsageRow{{
+		Code:          "650000001",
+		InsuranceCode: "650000001",
+		Name:          "테스트정",
+		UsageQty:      12.5,
+		OrderCount:    3,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertXLSXParts(t, data, []string{"xl/workbook.xml", "xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml"})
+}
+
+func assertXLSXParts(t *testing.T, data []byte, wants []string) {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := map[string]bool{}
+	for _, file := range zr.File {
+		parts[file.Name] = true
+	}
+	for _, want := range wants {
+		if !parts[want] {
+			t.Fatalf("missing xlsx part %s", want)
+		}
+	}
+}

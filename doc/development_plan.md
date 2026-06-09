@@ -1124,7 +1124,6 @@ h2opd_doct_ord.qty * h2opd_doct_ord.days
 
 조건:
 
-- `inout_gb = 'I'`
 - 첫 입고일 이후 처방만 사용량에 포함
 - 외래 조제 마감된 건만 포함
 - 약품코드는 `ord_cd`, `medfee_cd`, `user_cd` fallback

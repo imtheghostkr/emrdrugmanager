@@ -30,6 +30,60 @@ func OrderPlanXLSX(plan drug.OrderPlan) ([]byte, error) {
 		_ = f.SetColWidth(sheet, "A", "O", 16)
 		_ = f.AutoFilter(sheet, "A1:O1", nil)
 	}
+	return workbookBytes(f)
+}
+
+func StocksXLSX(rows []drug.StockBalance) ([]byte, error) {
+	f := excelize.NewFile()
+	sheet := "재고조회"
+	f.SetSheetName("Sheet1", sheet)
+	data := [][]any{{
+		"약품코드", "약품명", "성분", "구분", "현재재고", "입고", "반품/폐기", "처방사용량", "출처",
+	}}
+	for _, row := range rows {
+		data = append(data, []any{
+			row.Code, row.Name, row.Component, row.DrugType, row.CurrentStockQty, row.ReceivedQty,
+			row.ReturnDisposalQty, row.InternalUsageQty, row.Source,
+		})
+	}
+	writeRows(f, sheet, data)
+	_ = f.SetColWidth(sheet, "A", "I", 16)
+	_ = f.SetColWidth(sheet, "B", "C", 32)
+	_ = f.AutoFilter(sheet, "A1:I1", nil)
+	return workbookBytes(f)
+}
+
+func UsageXLSX(from, to string, rows []drug.UsageRow) ([]byte, error) {
+	f := excelize.NewFile()
+	summary := "요약"
+	f.SetSheetName("Sheet1", summary)
+	f.NewSheet("처방량")
+
+	summaryRows := [][]any{
+		{"항목", "값"},
+		{"처방기간", from + " ~ " + to},
+		{"조회 품목", len(rows)},
+	}
+	writeRows(f, summary, summaryRows)
+
+	data := [][]any{{
+		"약품코드", "보험코드", "약품명", "성분", "구분", "처방량", "처방건수",
+	}}
+	for _, row := range rows {
+		data = append(data, []any{
+			row.Code, row.InsuranceCode, row.Name, row.Component, row.Category, row.UsageQty, row.OrderCount,
+		})
+	}
+	writeRows(f, "처방량", data)
+	for _, sheet := range []string{summary, "처방량"} {
+		_ = f.SetColWidth(sheet, "A", "G", 16)
+		_ = f.SetColWidth(sheet, "C", "D", 32)
+		_ = f.AutoFilter(sheet, "A1:G1", nil)
+	}
+	return workbookBytes(f)
+}
+
+func workbookBytes(f *excelize.File) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
 	if err := f.Write(buf); err != nil {
 		return nil, err
@@ -81,4 +135,12 @@ func filterNeeded(rows []drug.OrderPlanRow) []drug.OrderPlanRow {
 
 func FileName(from, to string) string {
 	return fmt.Sprintf("drug_order_plan_%s_%s.xlsx", from, to)
+}
+
+func StocksFileName() string {
+	return "drug_stocks.xlsx"
+}
+
+func UsageFileName(from, to string) string {
+	return fmt.Sprintf("drug_usage_%s_%s.xlsx", from, to)
 }

@@ -257,6 +257,16 @@ document.addEventListener("click", async (event) => {
     }
   }
 
+  if (event.target.id === "downloadStocksBtn") {
+    setText("stocksStatus", "XLSX 파일 생성 중...");
+    try {
+      await downloadFile("/api/stocks.xlsx", "drug_stocks.xlsx");
+      setText("stocksStatus", "XLSX 다운로드를 시작했습니다.");
+    } catch (err) {
+      setText("stocksStatus", err.message);
+    }
+  }
+
   if (event.target.id === "loadUsageBtn") {
     const query = usageQuery();
     setText("usageStatus", "처방량 조회 중...");
@@ -265,6 +275,17 @@ document.addEventListener("click", async (event) => {
       const rows = await api(`/api/usage?${query}`);
       setText("usageStatus", rows.length === 0 ? "결과가 없습니다. 기간을 넓혀서 다시 조회하세요." : `${rows.length}개 코드 조회됨`);
       renderTable($("usageResults"), rows, usageColumns);
+    } catch (err) {
+      setText("usageStatus", err.message);
+    }
+  }
+
+  if (event.target.id === "downloadUsageBtn") {
+    const query = usageQuery();
+    setText("usageStatus", "XLSX 파일 생성 중...");
+    try {
+      await downloadFile(`/api/usage.xlsx?${query}`, "drug_usage.xlsx");
+      setText("usageStatus", "XLSX 다운로드를 시작했습니다.");
     } catch (err) {
       setText("usageStatus", err.message);
     }

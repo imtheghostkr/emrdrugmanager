@@ -108,7 +108,9 @@ func (a *App) Routes() http.Handler {
 		api.Get("/drugs/{code}", a.withAdapter(a.handleDrugDetail))
 		api.Get("/drugs/{code}/stock", a.withAdapter(a.handleDrugStock))
 		api.Get("/stocks", a.withAdapter(a.handleStocks))
+		api.Get("/stocks.xlsx", a.withAdapter(a.handleStocksXLSX))
 		api.Get("/usage", a.withAdapter(a.handleUsage))
+		api.Get("/usage.xlsx", a.withAdapter(a.handleUsageXLSX))
 		api.Get("/user-codes/{code}/stock", a.withAdapter(a.handleUserCodeStock))
 		api.Get("/user-codes/{code}/usage", a.withAdapter(a.handleUserCodeUsage))
 		api.Get("/inventory/order-plan", a.withAdapter(a.handleOrderPlan))
@@ -516,17 +518,41 @@ func (a *App) handleStocks(w http.ResponseWriter, r *http.Request, adapter adapt
 	writeJSON(w, http.StatusOK, rows)
 }
 
-func (a *App) handleUsage(w http.ResponseWriter, r *http.Request, adapter adapters.DrugAdapter) {
-	from, to := dateRange(r)
-	rows, err := adapter.GetUsage(r.Context(), from, to, usageQueryOptions(r))
+func (a *App) handleStocksXLSX(w http.ResponseWriter, r *http.Request, adapter adapters.DrugAdapter) {
+	rows, err := adapter.GetAllStocks(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if queryBool(r, "group_same", false) {
-		rows = inventory.GroupUsageRowsByIngredientDose(rows)
+	data, err := export.StocksXLSX(rows)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeXLSX(w, data, export.StocksFileName())
+}
+
+func (a *App) handleUsage(w http.ResponseWriter, r *http.Request, adapter adapters.DrugAdapter) {
+	_, _, rows, err := usageRows(r.Context(), r, adapter)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	writeJSON(w, http.StatusOK, rows)
+}
+
+func (a *App) handleUsageXLSX(w http.ResponseWriter, r *http.Request, adapter adapters.DrugAdapter) {
+	from, to, rows, err := usageRows(r.Context(), r, adapter)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	data, err := export.UsageXLSX(from, to, rows)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeXLSX(w, data, export.UsageFileName(from, to))
 }
 
 func (a *App) handleUserCodeStock(w http.ResponseWriter, r *http.Request, adapter adapters.DrugAdapter) {
@@ -568,12 +594,7 @@ func (a *App) handleOrderPlanXLSX(w http.ResponseWriter, r *http.Request, adapte
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-	w.Header().Set("Content-Disposition", `attachment; filename="`+export.FileName(plan.From, plan.To)+`"`)
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	_, _ = w.Write(data)
+	writeXLSX(w, data, export.FileName(plan.From, plan.To))
 }
 
 func (a *App) orderPlan(ctx context.Context, r *http.Request, adapter adapters.DrugAdapter) (drug.OrderPlan, error) {
@@ -602,6 +623,27 @@ func (a *App) orderPlan(ctx context.Context, r *http.Request, adapter adapters.D
 		TruncateOrderQtyTo10:    truncateOrderQty,
 	})
 	return plan, nil
+}
+
+func usageRows(ctx context.Context, r *http.Request, adapter adapters.DrugAdapter) (string, string, []drug.UsageRow, error) {
+	from, to := dateRange(r)
+	rows, err := adapter.GetUsage(ctx, from, to, usageQueryOptions(r))
+	if err != nil {
+		return from, to, nil, err
+	}
+	if queryBool(r, "group_same", false) {
+		rows = inventory.GroupUsageRowsByIngredientDose(rows)
+	}
+	return from, to, rows, nil
+}
+
+func writeXLSX(w http.ResponseWriter, data []byte, filename string) {
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	_, _ = w.Write(data)
 }
 
 func usageQueryOptions(r *http.Request) adapters.QueryOptions {

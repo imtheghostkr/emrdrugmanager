@@ -129,8 +129,11 @@ GET  /api/drugs/search?q=
 GET  /api/drugs/{code}
 GET  /api/drugs/{code}/stock
 GET  /api/stocks
+GET  /api/stocks.xlsx
 GET  /api/usage?days=30
 GET  /api/usage?from=YYYYMMDD&to=YYYYMMDD
+GET  /api/usage.xlsx?days=30
+GET  /api/usage.xlsx?from=YYYYMMDD&to=YYYYMMDD
 GET  /api/user-codes/{code}/stock
 GET  /api/user-codes/{code}/usage?days=30
 GET  /api/user-codes/{code}/usage?from=YYYYMMDD&to=YYYYMMDD
@@ -150,9 +153,11 @@ Examples:
 
 ```powershell
 Invoke-RestMethod "http://127.0.0.1:3987/api/stocks"
+Invoke-WebRequest "http://127.0.0.1:3987/api/stocks.xlsx" -OutFile ".\drug_stocks.xlsx"
 Invoke-RestMethod "http://127.0.0.1:3987/api/usage?days=30"
 Invoke-RestMethod "http://127.0.0.1:3987/api/usage?from=20260501&to=20260531"
 Invoke-RestMethod "http://127.0.0.1:3987/api/usage?days=365&group_same=true&exclude_outside=true&exclude_injection=true"
+Invoke-WebRequest "http://127.0.0.1:3987/api/usage.xlsx?days=365&group_same=true&exclude_outside=true&exclude_injection=true" -OutFile ".\drug_usage.xlsx"
 Invoke-RestMethod "http://127.0.0.1:3987/api/user-codes/651900680/stock"
 Invoke-RestMethod "http://127.0.0.1:3987/api/user-codes/651900680/usage?days=90"
 ```
