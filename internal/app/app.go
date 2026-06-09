@@ -518,10 +518,13 @@ func (a *App) handleStocks(w http.ResponseWriter, r *http.Request, adapter adapt
 
 func (a *App) handleUsage(w http.ResponseWriter, r *http.Request, adapter adapters.DrugAdapter) {
 	from, to := dateRange(r)
-	rows, err := adapter.GetUsage(r.Context(), from, to)
+	rows, err := adapter.GetUsage(r.Context(), from, to, usageQueryOptions(r))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if queryBool(r, "group_same", false) {
+		rows = inventory.GroupUsageRowsByIngredientDose(rows)
 	}
 	writeJSON(w, http.StatusOK, rows)
 }
@@ -537,7 +540,7 @@ func (a *App) handleUserCodeStock(w http.ResponseWriter, r *http.Request, adapte
 
 func (a *App) handleUserCodeUsage(w http.ResponseWriter, r *http.Request, adapter adapters.DrugAdapter) {
 	from, to := dateRange(r)
-	item, err := adapter.GetUsageByCode(r.Context(), chi.URLParam(r, "code"), from, to)
+	item, err := adapter.GetUsageByCode(r.Context(), chi.URLParam(r, "code"), from, to, usageQueryOptions(r))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -581,7 +584,7 @@ func (a *App) orderPlan(ctx context.Context, r *http.Request, adapter adapters.D
 	}
 	groupSame := queryBool(r, "group_same", true)
 	truncateOrderQty := queryBool(r, "truncate_order_qty", false)
-	usage, err := adapter.GetUsage(ctx, from, to)
+	usage, err := adapter.GetUsage(ctx, from, to, usageQueryOptions(r))
 	if err != nil {
 		return drug.OrderPlan{}, err
 	}
@@ -599,6 +602,13 @@ func (a *App) orderPlan(ctx context.Context, r *http.Request, adapter adapters.D
 		TruncateOrderQtyTo10:    truncateOrderQty,
 	})
 	return plan, nil
+}
+
+func usageQueryOptions(r *http.Request) adapters.QueryOptions {
+	return adapters.QueryOptions{
+		ExcludeOutside:   queryBool(r, "exclude_outside", false),
+		ExcludeInjection: queryBool(r, "exclude_injection", false),
+	}
 }
 
 func queryBool(r *http.Request, key string, defaultValue bool) bool {

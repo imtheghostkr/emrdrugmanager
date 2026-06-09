@@ -138,12 +138,21 @@ GET  /api/inventory/order-plan?from=YYYYMMDD&to=YYYYMMDD&target_days=45
 GET  /api/inventory/order-plan.xlsx?from=YYYYMMDD&to=YYYYMMDD&target_days=45
 ```
 
+Usage and order-plan endpoints also accept:
+
+- `group_same=true` to combine rows by same ingredient and dose.
+- `exclude_outside=true` to exclude outside-prescription drugs.
+- `exclude_injection=true` to exclude injection drugs.
+
+Order-plan rows include both `medfee_code` and `insurance_code`.
+
 Examples:
 
 ```powershell
 Invoke-RestMethod "http://127.0.0.1:3987/api/stocks"
 Invoke-RestMethod "http://127.0.0.1:3987/api/usage?days=30"
 Invoke-RestMethod "http://127.0.0.1:3987/api/usage?from=20260501&to=20260531"
+Invoke-RestMethod "http://127.0.0.1:3987/api/usage?days=365&group_same=true&exclude_outside=true&exclude_injection=true"
 Invoke-RestMethod "http://127.0.0.1:3987/api/user-codes/651900680/stock"
 Invoke-RestMethod "http://127.0.0.1:3987/api/user-codes/651900680/usage?days=90"
 ```

@@ -47,12 +47,14 @@ func BuildOrderPlanWithOptions(from, to string, targetDays, usageDays int, usage
 				RepresentativeName: row.Name,
 				ProductNames:       nonEmptyList(row.Name),
 				MedfeeCode:         row.Code,
+				InsuranceCode:      row.InsuranceCode,
 				StockSource:        "DB계산",
 			}
 			grouped[key] = item
 		} else {
 			item.ProductNames = appendUnique(item.ProductNames, row.Name)
 			item.MedfeeCode = appendUniqueCSV(item.MedfeeCode, row.Code)
+			item.InsuranceCode = appendUniqueCSV(item.InsuranceCode, row.InsuranceCode)
 		}
 		item.UsageQty += row.UsageQty
 		item.OrderCount += row.OrderCount
@@ -116,6 +118,40 @@ func BuildOrderPlanWithOptions(from, to string, targetDays, usageDays int, usage
 		}
 	}
 	return drug.OrderPlan{From: from, To: to, TargetDays: targetDays, Summary: summary, Rows: rows}
+}
+
+func GroupUsageRowsByIngredientDose(rows []drug.UsageRow) []drug.UsageRow {
+	grouped := map[string]*drug.UsageRow{}
+	for _, row := range rows {
+		ingredient := strings.TrimSpace(row.Component)
+		if ingredient == "" {
+			ingredient = extractIngredient(row.Name)
+		}
+		key := row.Category + "|" + ingredient + "|" + extractDosage(row.Name)
+		item := grouped[key]
+		if item == nil {
+			copy := row
+			copy.Component = ingredient
+			grouped[key] = &copy
+			continue
+		}
+		item.Code = appendUniqueCSV(item.Code, row.Code)
+		item.InsuranceCode = appendUniqueCSV(item.InsuranceCode, row.InsuranceCode)
+		item.Name = strings.Join(appendUnique(splitNames(item.Name), row.Name), " | ")
+		item.UsageQty += row.UsageQty
+		item.OrderCount += row.OrderCount
+	}
+	out := make([]drug.UsageRow, 0, len(grouped))
+	for _, row := range grouped {
+		out = append(out, *row)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].UsageQty != out[j].UsageQty {
+			return out[i].UsageQty > out[j].UsageQty
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
 }
 
 func extractDosage(name string) string {
@@ -182,6 +218,18 @@ func appendUniqueCSV(csv, value string) string {
 
 func splitCSV(csv string) []string {
 	parts := strings.Split(csv, ",")
+	cleaned := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			cleaned = append(cleaned, part)
+		}
+	}
+	return cleaned
+}
+
+func splitNames(value string) []string {
+	parts := strings.Split(value, "|")
 	cleaned := make([]string, 0, len(parts))
 	for _, part := range parts {
 		part = strings.TrimSpace(part)

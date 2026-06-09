@@ -27,8 +27,8 @@ func OrderPlanXLSX(plan drug.OrderPlan) ([]byte, error) {
 	writePlanRows(f, "주문필요", filterNeeded(plan.Rows))
 	writePlanRows(f, "전체상세", plan.Rows)
 	for _, sheet := range []string{summary, "주문필요", "전체상세"} {
-		_ = f.SetColWidth(sheet, "A", "N", 16)
-		_ = f.AutoFilter(sheet, "A1:N1", nil)
+		_ = f.SetColWidth(sheet, "A", "O", 16)
+		_ = f.AutoFilter(sheet, "A1:O1", nil)
 	}
 	buf := bytes.NewBuffer(nil)
 	if err := f.Write(buf); err != nil {
@@ -40,13 +40,13 @@ func OrderPlanXLSX(plan drug.OrderPlan) ([]byte, error) {
 func writePlanRows(f *excelize.File, sheet string, rows []drug.OrderPlanRow) {
 	data := [][]any{{
 		"긴급도", "구분", "성분명", "용량", "약품명", "권장주문량", "현재재고", "재고일수",
-		"목표재고", "부족량", "일평균", "월평균", "재고출처", "약품코드",
+		"목표재고", "부족량", "일평균", "월평균", "재고출처", "약품코드", "보험코드",
 	}}
 	for _, row := range rows {
 		data = append(data, []any{
 			row.Urgency, row.Category, row.Ingredient, row.Dosage, row.RepresentativeName,
 			row.RecommendedOrderQty, row.CurrentStockQty, row.CoverageDays, row.TargetStockQty,
-			row.ShortageQty, row.DailyUsageQty, row.Avg30dUsage, row.StockSource, row.MedfeeCode,
+			row.ShortageQty, row.DailyUsageQty, row.Avg30dUsage, row.StockSource, row.MedfeeCode, row.InsuranceCode,
 		})
 	}
 	writeRows(f, sheet, data)

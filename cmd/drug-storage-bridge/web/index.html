@@ -87,6 +87,11 @@
           <label>시작일 <input id="usageFrom" name="usageFrom" placeholder="YYYYMMDD" autocomplete="off" inputmode="numeric" /></label>
           <label>종료일 <input id="usageTo" name="usageTo" placeholder="YYYYMMDD" autocomplete="off" inputmode="numeric" /></label>
         </div>
+        <div class="checks">
+          <label><input id="usageGroupSameDose" type="checkbox" /> 동일성분용량 합산</label>
+          <label><input id="usageExcludeOutside" type="checkbox" /> 원외약 제외</label>
+          <label><input id="usageExcludeInjection" type="checkbox" /> 주사제 제외</label>
+        </div>
         <div class="actions">
           <button id="loadUsageBtn" class="primary">처방량 조회</button>
         </div>
@@ -129,12 +134,15 @@
         </div>
         <div class="checks">
           <label><input id="groupSameDose" type="checkbox" checked /> 동일성분용량 합산</label>
+          <label><input id="planExcludeOutside" type="checkbox" /> 원외약 제외</label>
+          <label><input id="planExcludeInjection" type="checkbox" /> 주사제 제외</label>
           <label><input id="truncateOrderQty" type="checkbox" /> 필요수량 10단위 절삭</label>
         </div>
         <div class="actions">
           <button id="loadPlanBtn" class="primary">계산</button>
           <button id="downloadPlanBtn">XLSX 다운로드</button>
         </div>
+        <p id="planStatus" class="muted"></p>
         <div id="planSummary" class="cards"></div>
         <div id="planResults"></div>
       </section>

@@ -44,7 +44,8 @@ const latestDrugSubquery = `
 	SELECT d.medfee_cd,
 	       MAX(COALESCE(d.medfee_nm, '')) AS medfee_nm,
 	       MAX(COALESCE(d.component, '')) AS component,
-	       MAX(COALESCE(d.drug_gb, '')) AS drug_gb
+	       MAX(COALESCE(d.drug_gb, '')) AS drug_gb,
+	       MAX(COALESCE(d.inject_path, '')) AS inject_path
 	FROM h0_mst_drug d
 	JOIN (
 		SELECT medfee_cd, MAX(COALESCE(apply_ymd, '')) AS apply_ymd
@@ -169,10 +170,11 @@ func (a *Adapter) GetDrug(ctx context.Context, code string) (drug.Drug, error) {
 	return item, err
 }
 
-func (a *Adapter) GetUsage(ctx context.Context, from, to string) ([]drug.UsageRow, error) {
+func (a *Adapter) GetUsage(ctx context.Context, from, to string, opts adapters.QueryOptions) ([]drug.UsageRow, error) {
 	rows, err := a.pool.Query(ctx, `
 		SELECT
 			COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd) AS code,
+			COALESCE(STRING_AGG(DISTINCT COALESCE(NULLIF(h2.medfee_cd, ''), NULLIF(h2.ord_cd, ''), NULLIF(h2.user_cd, '')), ', '), '') AS insurance_code,
 			MAX(COALESCE(d.medfee_nm, h2.medfee_nm, '')) AS name,
 			MAX(COALESCE(d.component, '')) AS component,
 			MAX(COALESCE(d.drug_gb, '')) AS drug_gb,
@@ -181,7 +183,7 @@ func (a *Adapter) GetUsage(ctx context.Context, from, to string) ([]drug.UsageRo
 			CASE WHEN MAX(n.user_cd) IS NULL THEN '일반약' ELSE '향정/마약류' END AS category
 		FROM h2opd_doct_ord h2
 		JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
-		LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = h2.ord_cd
+		LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
 		LEFT JOIN (
 			SELECT DISTINCT ord_ymd, ord_no, ord_seq_no, user_cd
 			FROM h8_nims_medi_lines
@@ -190,8 +192,10 @@ func (a *Adapter) GetUsage(ctx context.Context, from, to string) ([]drug.UsageRo
 		WHERE h2.ord_ymd BETWEEN $1 AND $2
 		  AND h2.ord_cd LIKE '6%'
 		  AND (CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END) > 0
+		  AND ($3 = false OR (COALESCE(h2.inout_gb, '') <> 'O' AND BTRIM(COALESCE(h2.walkout_yn, '')) <> 'Y'))
+		  AND ($4 = false OR COALESCE(NULLIF(h2.inject_path, ''), d.inject_path, '') <> '02')
 		GROUP BY COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
-	`, from, to)
+	`, from, to, opts.ExcludeOutside, opts.ExcludeInjection)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +203,7 @@ func (a *Adapter) GetUsage(ctx context.Context, from, to string) ([]drug.UsageRo
 	out := make([]drug.UsageRow, 0)
 	for rows.Next() {
 		var item drug.UsageRow
-		if err := rows.Scan(&item.Code, &item.Name, &item.Component, &item.DrugType, &item.UsageQty, &item.OrderCount, &item.Category); err != nil {
+		if err := rows.Scan(&item.Code, &item.InsuranceCode, &item.Name, &item.Component, &item.DrugType, &item.UsageQty, &item.OrderCount, &item.Category); err != nil {
 			return nil, err
 		}
 		out = append(out, item)
@@ -207,12 +211,13 @@ func (a *Adapter) GetUsage(ctx context.Context, from, to string) ([]drug.UsageRo
 	return out, rows.Err()
 }
 
-func (a *Adapter) GetUsageByCode(ctx context.Context, code, from, to string) (drug.UsageRow, error) {
+func (a *Adapter) GetUsageByCode(ctx context.Context, code, from, to string, opts adapters.QueryOptions) (drug.UsageRow, error) {
 	code = strings.TrimSpace(code)
 	var item drug.UsageRow
 	err := a.pool.QueryRow(ctx, `
 		SELECT
 			$1 AS code,
+			COALESCE(STRING_AGG(DISTINCT COALESCE(NULLIF(h2.medfee_cd, ''), NULLIF(h2.ord_cd, ''), NULLIF(h2.user_cd, '')), ', '), '') AS insurance_code,
 			COALESCE(MAX(COALESCE(d.medfee_nm, h2.medfee_nm, '')), '') AS name,
 			COALESCE(MAX(COALESCE(d.component, '')), '') AS component,
 			COALESCE(MAX(COALESCE(d.drug_gb, '')), '') AS drug_gb,
@@ -230,7 +235,9 @@ func (a *Adapter) GetUsageByCode(ctx context.Context, code, from, to string) (dr
 		WHERE h2.ord_ymd BETWEEN $2 AND $3
 		  AND (h2.user_cd = $1 OR h2.ord_cd = $1 OR h2.medfee_cd = $1)
 		  AND (CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END) > 0
-	`, code, from, to).Scan(&item.Code, &item.Name, &item.Component, &item.DrugType, &item.UsageQty, &item.OrderCount, &item.Category)
+		  AND ($4 = false OR (COALESCE(h2.inout_gb, '') <> 'O' AND BTRIM(COALESCE(h2.walkout_yn, '')) <> 'Y'))
+		  AND ($5 = false OR COALESCE(NULLIF(h2.inject_path, ''), d.inject_path, '') <> '02')
+	`, code, from, to, opts.ExcludeOutside, opts.ExcludeInjection).Scan(&item.Code, &item.InsuranceCode, &item.Name, &item.Component, &item.DrugType, &item.UsageQty, &item.OrderCount, &item.Category)
 	if err != nil {
 		return drug.UsageRow{}, err
 	}

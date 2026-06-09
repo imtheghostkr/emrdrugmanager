@@ -112,6 +112,18 @@ function dateQuery(daysId, fromId, toId) {
   return `days=${encodeURIComponent(days)}`;
 }
 
+function appendOption(parts, id, key) {
+  parts.push(`${key}=${$(id).checked ? "true" : "false"}`);
+}
+
+function usageQuery() {
+  const parts = [dateQuery("usageDays", "usageFrom", "usageTo")];
+  appendOption(parts, "usageGroupSameDose", "group_same");
+  appendOption(parts, "usageExcludeOutside", "exclude_outside");
+  appendOption(parts, "usageExcludeInjection", "exclude_injection");
+  return parts.join("&");
+}
+
 function planQuery() {
   const preset = $("planPreset").value;
   const parts = [];
@@ -123,6 +135,8 @@ function planQuery() {
   }
   parts.push(`target_days=${encodeURIComponent(Number($("targetDays").value || 45))}`);
   parts.push(`group_same=${$("groupSameDose").checked ? "true" : "false"}`);
+  appendOption(parts, "planExcludeOutside", "exclude_outside");
+  appendOption(parts, "planExcludeInjection", "exclude_injection");
   parts.push(`truncate_order_qty=${$("truncateOrderQty").checked ? "true" : "false"}`);
   return parts.join("&");
 }
@@ -164,6 +178,7 @@ const stockColumns = [
 
 const usageColumns = [
   { key: "code", label: "코드" },
+  { key: "insurance_code", label: "보험코드" },
   { key: "name", label: "약품명" },
   { key: "component", label: "성분" },
   { key: "category", label: "구분" },
@@ -243,7 +258,7 @@ document.addEventListener("click", async (event) => {
   }
 
   if (event.target.id === "loadUsageBtn") {
-    const query = dateQuery("usageDays", "usageFrom", "usageTo");
+    const query = usageQuery();
     setText("usageStatus", "처방량 조회 중...");
     $("usageResults").innerHTML = "";
     try {
@@ -300,6 +315,7 @@ document.addEventListener("click", async (event) => {
     `;
     renderTable($("planResults"), rows, [
       { key: "medfee_code", label: "약품코드" },
+      { key: "insurance_code", label: "보험코드" },
       { key: "representative_name", label: "약품명" },
       { key: "usage_qty", label: "기간처방량" },
       { key: "target_stock_qty", label: "비축필요량" },

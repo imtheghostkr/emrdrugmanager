@@ -23,8 +23,13 @@ type DrugAdapter interface {
 	SearchDrugs(ctx context.Context, query string) ([]drug.Drug, error)
 	GetDrug(ctx context.Context, code string) (drug.Drug, error)
 	GetStock(ctx context.Context, code string) (drug.StockBalance, error)
-	GetUsage(ctx context.Context, from, to string) ([]drug.UsageRow, error)
-	GetUsageByCode(ctx context.Context, code, from, to string) (drug.UsageRow, error)
+	GetUsage(ctx context.Context, from, to string, opts QueryOptions) ([]drug.UsageRow, error)
+	GetUsageByCode(ctx context.Context, code, from, to string, opts QueryOptions) (drug.UsageRow, error)
 	GetStocks(ctx context.Context, codes []string) (map[string]drug.StockBalance, error)
 	GetAllStocks(ctx context.Context) ([]drug.StockBalance, error)
+}
+
+type QueryOptions struct {
+	ExcludeOutside   bool
+	ExcludeInjection bool
 }

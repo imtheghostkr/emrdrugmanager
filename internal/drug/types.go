@@ -20,15 +20,16 @@ type StockBalance struct {
 }
 
 type UsageRow struct {
-	Code       string  `json:"code"`
-	Name       string  `json:"name"`
-	Component  string  `json:"component"`
-	DrugType   string  `json:"drug_type"`
-	Category   string  `json:"category"`
-	Qty        float64 `json:"qty"`
-	Days       float64 `json:"days"`
-	UsageQty   float64 `json:"usage_qty"`
-	OrderCount int     `json:"order_count"`
+	Code          string  `json:"code"`
+	InsuranceCode string  `json:"insurance_code"`
+	Name          string  `json:"name"`
+	Component     string  `json:"component"`
+	DrugType      string  `json:"drug_type"`
+	Category      string  `json:"category"`
+	Qty           float64 `json:"qty"`
+	Days          float64 `json:"days"`
+	UsageQty      float64 `json:"usage_qty"`
+	OrderCount    int     `json:"order_count"`
 }
 
 type OrderPlanRow struct {
@@ -38,6 +39,7 @@ type OrderPlanRow struct {
 	RepresentativeName  string   `json:"representative_name"`
 	ProductNames        []string `json:"product_names"`
 	MedfeeCode          string   `json:"medfee_code"`
+	InsuranceCode       string   `json:"insurance_code"`
 	UsageQty            float64  `json:"usage_qty"`
 	DailyUsageQty       float64  `json:"daily_usage_qty"`
 	Avg30dUsage         float64  `json:"avg_30d_usage"`
