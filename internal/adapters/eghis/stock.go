@@ -88,8 +88,8 @@ func (a *Adapter) generalStocks(ctx context.Context, codes []string) (map[string
 			  AND h2.inout_gb = 'I'
 			  AND h2.ord_ymd >= $2
 			  AND h2.ord_ymd <= $3
-			  AND COALESCE(h1.close_ymd, '') <> ''
-			  AND COALESCE(h1.proc_gb, '') <> '90'
+			  AND COALESCE(h1.proc_gb, '') NOT IN ('25', '50', '90')
+			  AND COALESCE(h2.dc_yn, '') <> 'Y'
 			UNION
 			SELECT h2.medfee_cd AS code, h2.ord_ymd, h2.recept_no, h2.ord_no, h2.ord_seq_no,
 			       `+prescriptionUsageQtySQL+` AS usage_qty
@@ -100,8 +100,8 @@ func (a *Adapter) generalStocks(ctx context.Context, codes []string) (map[string
 			  AND h2.inout_gb = 'I'
 			  AND h2.ord_ymd >= $2
 			  AND h2.ord_ymd <= $3
-			  AND COALESCE(h1.close_ymd, '') <> ''
-			  AND COALESCE(h1.proc_gb, '') <> '90'
+			  AND COALESCE(h1.proc_gb, '') NOT IN ('25', '50', '90')
+			  AND COALESCE(h2.dc_yn, '') <> 'Y'
 			UNION
 			SELECT h2.user_cd AS code, h2.ord_ymd, h2.recept_no, h2.ord_no, h2.ord_seq_no,
 			       `+prescriptionUsageQtySQL+` AS usage_qty
@@ -112,8 +112,8 @@ func (a *Adapter) generalStocks(ctx context.Context, codes []string) (map[string
 			  AND h2.inout_gb = 'I'
 			  AND h2.ord_ymd >= $2
 			  AND h2.ord_ymd <= $3
-			  AND COALESCE(h1.close_ymd, '') <> ''
-			  AND COALESCE(h1.proc_gb, '') <> '90'
+			  AND COALESCE(h1.proc_gb, '') NOT IN ('25', '50', '90')
+			  AND COALESCE(h2.dc_yn, '') <> 'Y'
 		) orders
 		WHERE COALESCE(code, '') <> ''
 		  AND COALESCE(usage_qty, 0) > 0
