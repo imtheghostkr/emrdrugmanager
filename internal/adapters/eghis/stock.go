@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/imtheghostkr/emrdrugmanager/internal/drug"
 )
@@ -17,30 +18,33 @@ func (a *Adapter) generalStocks(ctx context.Context, codes []string) (map[string
 	if len(codes) == 0 {
 		return out, nil
 	}
+	today := time.Now().Format("20060102")
 
 	rows, err := a.pool.Query(ctx, `
-		SELECT code, COALESCE(int_ymd, ''), COALESCE(return_gb, ''), COALESCE(int_qty, 0)
+		SELECT code, COALESCE(int_seq::text, ''), COALESCE(int_ymd, ''), COALESCE(return_gb, ''), COALESCE(int_qty, 0)
 		FROM (
-			SELECT medfee_cd AS code, int_ymd, return_gb, int_qty
+			SELECT medfee_cd AS code, int_seq, int_ymd, return_gb, int_qty
 			FROM h0drug_stock
-			WHERE medfee_cd = ANY($1::text[])
+			WHERE medfee_cd = ANY($1::text[]) AND COALESCE(int_ymd, '') <= $2
+			  AND (COALESCE(user_cd, '') = '' OR user_cd = medfee_cd)
 			UNION
-			SELECT user_cd AS code, int_ymd, return_gb, int_qty
+			SELECT user_cd AS code, int_seq, int_ymd, return_gb, int_qty
 			FROM h0drug_stock
-			WHERE user_cd = ANY($1::text[])
+			WHERE user_cd = ANY($1::text[]) AND COALESCE(int_ymd, '') <= $2
 		) s
 		WHERE COALESCE(code, '') <> ''
-	`, codes)
+	`, codes, today)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var code, intYmd, returnGb string
+		var code, intSeq, intYmd, returnGb string
 		var qty float64
-		if err := rows.Scan(&code, &intYmd, &returnGb, &qty); err != nil {
+		if err := rows.Scan(&code, &intSeq, &intYmd, &returnGb, &qty); err != nil {
 			return nil, err
 		}
+		_ = intSeq
 		stock := out[code]
 		if strings.TrimSpace(returnGb) == "" {
 			stock.ReceivedQty += qty
@@ -81,8 +85,11 @@ func (a *Adapter) generalStocks(ctx context.Context, codes []string) (map[string
 			JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
 			LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
 			WHERE h2.ord_cd = ANY($1::text[])
+			  AND h2.inout_gb = 'I'
 			  AND h2.ord_ymd >= $2
+			  AND h2.ord_ymd <= $3
 			  AND COALESCE(h1.close_ymd, '') <> ''
+			  AND COALESCE(h1.proc_gb, '') <> '90'
 			UNION
 			SELECT h2.medfee_cd AS code, h2.ord_ymd, h2.recept_no, h2.ord_no, h2.ord_seq_no,
 			       `+prescriptionUsageQtySQL+` AS usage_qty
@@ -90,8 +97,11 @@ func (a *Adapter) generalStocks(ctx context.Context, codes []string) (map[string
 			JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
 			LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
 			WHERE h2.medfee_cd = ANY($1::text[])
+			  AND h2.inout_gb = 'I'
 			  AND h2.ord_ymd >= $2
+			  AND h2.ord_ymd <= $3
 			  AND COALESCE(h1.close_ymd, '') <> ''
+			  AND COALESCE(h1.proc_gb, '') <> '90'
 			UNION
 			SELECT h2.user_cd AS code, h2.ord_ymd, h2.recept_no, h2.ord_no, h2.ord_seq_no,
 			       `+prescriptionUsageQtySQL+` AS usage_qty
@@ -99,12 +109,15 @@ func (a *Adapter) generalStocks(ctx context.Context, codes []string) (map[string
 			JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
 			LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
 			WHERE h2.user_cd = ANY($1::text[])
+			  AND h2.inout_gb = 'I'
 			  AND h2.ord_ymd >= $2
+			  AND h2.ord_ymd <= $3
 			  AND COALESCE(h1.close_ymd, '') <> ''
+			  AND COALESCE(h1.proc_gb, '') <> '90'
 		) orders
 		WHERE COALESCE(code, '') <> ''
 		  AND COALESCE(usage_qty, 0) > 0
-	`, activeCodes, minFirstIn)
+	`, activeCodes, minFirstIn, today)
 	if err != nil {
 		return nil, err
 	}
