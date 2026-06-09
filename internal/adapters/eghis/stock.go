@@ -76,6 +76,8 @@ func (a *Adapter) generalStocks(ctx context.Context, codes []string) (map[string
 		return out, nil
 	}
 
+	// 재고 차감용 처방 출고에서는 미확정 접수와 처방줄 DC를 제외한다.
+	// proc_gb: 25=보류진료, 50=삭제진료, 90=취소진료. h2.dc_yn=Y는 사용자가 처방줄에서 DC한 항목이다.
 	usageRows, err := a.pool.Query(ctx, `
 		SELECT code, COALESCE(ord_ymd, ''), COALESCE(recept_no::text, ''), COALESCE(ord_no::text, ''), COALESCE(ord_seq_no::text, ''), usage_qty
 		FROM (
