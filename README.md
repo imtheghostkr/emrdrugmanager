@@ -1,5 +1,7 @@
 # Drug Storage Bridge
 
+한국어 설치 및 사용 안내는 [README.ko.md](README.ko.md)를 보세요.
+
 Drug Storage Bridge is a Windows local API and Web UI for drug-only inventory and prescription usage queries from an EMR PostgreSQL database.
 
 Version `0.1.0` supports the Eghis PostgreSQL schema.
