@@ -1119,7 +1119,8 @@ h0drug_stock
 원내 사용:
 
 ```text
-h2opd_doct_ord.qty * h2opd_doct_ord.days
+정제/캡슐 등 일반 처방: h2opd_doct_ord.qty * h2opd_doct_ord.days
+주사제/펜 처방: h2opd_doct_ord.cal_qty 우선, 없으면 qty * days
 ```
 
 조건:

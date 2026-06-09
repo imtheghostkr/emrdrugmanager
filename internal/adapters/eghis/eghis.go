@@ -55,6 +55,15 @@ const latestDrugSubquery = `
 	GROUP BY d.medfee_cd
 `
 
+const prescriptionUsageQtySQL = `
+	CASE
+		WHEN COALESCE(NULLIF(h2.inject_path, ''), d.inject_path, '') = '02' THEN
+			CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END
+		ELSE
+			CASE WHEN COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) > 0 THEN COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) ELSE COALESCE(h2.cal_qty, 0) END
+	END
+`
+
 func New(ctx context.Context, db config.DatabaseConfig, password string) (*Adapter, error) {
 	pool, err := pgxpool.New(ctx, db.DSN(password))
 	if err != nil {
@@ -178,7 +187,7 @@ func (a *Adapter) GetUsage(ctx context.Context, from, to string, opts adapters.Q
 			MAX(COALESCE(d.medfee_nm, h2.medfee_nm, '')) AS name,
 			MAX(COALESCE(d.component, '')) AS component,
 			MAX(COALESCE(d.drug_gb, '')) AS drug_gb,
-			SUM(CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END) AS usage_qty,
+			SUM(`+prescriptionUsageQtySQL+`) AS usage_qty,
 			COUNT(*) AS order_count,
 			CASE WHEN MAX(n.user_cd) IS NULL THEN '일반약' ELSE '향정/마약류' END AS category
 		FROM h2opd_doct_ord h2
@@ -191,7 +200,7 @@ func (a *Adapter) GetUsage(ctx context.Context, from, to string, opts adapters.Q
 		) n ON h2.ord_ymd = n.ord_ymd AND h2.ord_no = n.ord_no AND h2.ord_seq_no = n.ord_seq_no AND h2.ord_cd = n.user_cd
 		WHERE h2.ord_ymd BETWEEN $1 AND $2
 		  AND h2.ord_cd LIKE '6%'
-		  AND (CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END) > 0
+		  AND (`+prescriptionUsageQtySQL+`) > 0
 		  AND ($3 = false OR (COALESCE(h2.inout_gb, '') <> 'O' AND BTRIM(COALESCE(h2.walkout_yn, '')) <> 'Y'))
 		  AND ($4 = false OR COALESCE(NULLIF(h2.inject_path, ''), d.inject_path, '') <> '02')
 		GROUP BY COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
@@ -221,7 +230,7 @@ func (a *Adapter) GetUsageByCode(ctx context.Context, code, from, to string, opt
 			COALESCE(MAX(COALESCE(d.medfee_nm, h2.medfee_nm, '')), '') AS name,
 			COALESCE(MAX(COALESCE(d.component, '')), '') AS component,
 			COALESCE(MAX(COALESCE(d.drug_gb, '')), '') AS drug_gb,
-			COALESCE(SUM(CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END), 0) AS usage_qty,
+			COALESCE(SUM(`+prescriptionUsageQtySQL+`), 0) AS usage_qty,
 			COUNT(*) AS order_count,
 			CASE WHEN MAX(n.user_cd) IS NULL THEN '일반약' ELSE '향정/마약류' END AS category
 		FROM h2opd_doct_ord h2
@@ -234,7 +243,7 @@ func (a *Adapter) GetUsageByCode(ctx context.Context, code, from, to string, opt
 		) n ON h2.ord_ymd = n.ord_ymd AND h2.ord_no = n.ord_no AND h2.ord_seq_no = n.ord_seq_no AND h2.user_cd = n.user_cd
 		WHERE h2.ord_ymd BETWEEN $2 AND $3
 		  AND (h2.user_cd = $1 OR h2.ord_cd = $1 OR h2.medfee_cd = $1)
-		  AND (CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END) > 0
+		  AND (`+prescriptionUsageQtySQL+`) > 0
 		  AND ($4 = false OR (COALESCE(h2.inout_gb, '') <> 'O' AND BTRIM(COALESCE(h2.walkout_yn, '')) <> 'Y'))
 		  AND ($5 = false OR COALESCE(NULLIF(h2.inject_path, ''), d.inject_path, '') <> '02')
 	`, code, from, to, opts.ExcludeOutside, opts.ExcludeInjection).Scan(&item.Code, &item.InsuranceCode, &item.Name, &item.Component, &item.DrugType, &item.UsageQty, &item.OrderCount, &item.Category)

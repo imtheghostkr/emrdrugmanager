@@ -76,25 +76,28 @@ func (a *Adapter) generalStocks(ctx context.Context, codes []string) (map[string
 		SELECT code, COALESCE(ord_ymd, ''), COALESCE(recept_no::text, ''), COALESCE(ord_no::text, ''), COALESCE(ord_seq_no::text, ''), usage_qty
 		FROM (
 			SELECT h2.ord_cd AS code, h2.ord_ymd, h2.recept_no, h2.ord_no, h2.ord_seq_no,
-			       CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END AS usage_qty
+			       `+prescriptionUsageQtySQL+` AS usage_qty
 			FROM h2opd_doct_ord h2
 			JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
+			LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
 			WHERE h2.ord_cd = ANY($1::text[])
 			  AND h2.ord_ymd >= $2
 			  AND COALESCE(h1.close_ymd, '') <> ''
 			UNION
 			SELECT h2.medfee_cd AS code, h2.ord_ymd, h2.recept_no, h2.ord_no, h2.ord_seq_no,
-			       CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END AS usage_qty
+			       `+prescriptionUsageQtySQL+` AS usage_qty
 			FROM h2opd_doct_ord h2
 			JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
+			LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
 			WHERE h2.medfee_cd = ANY($1::text[])
 			  AND h2.ord_ymd >= $2
 			  AND COALESCE(h1.close_ymd, '') <> ''
 			UNION
 			SELECT h2.user_cd AS code, h2.ord_ymd, h2.recept_no, h2.ord_no, h2.ord_seq_no,
-			       CASE WHEN COALESCE(h2.cal_qty, 0) > 0 THEN h2.cal_qty ELSE COALESCE(h2.qty, 0) * COALESCE(h2.days, 0) END AS usage_qty
+			       `+prescriptionUsageQtySQL+` AS usage_qty
 			FROM h2opd_doct_ord h2
 			JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
+			LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
 			WHERE h2.user_cd = ANY($1::text[])
 			  AND h2.ord_ymd >= $2
 			  AND COALESCE(h1.close_ymd, '') <> ''
