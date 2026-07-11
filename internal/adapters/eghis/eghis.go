@@ -210,7 +210,9 @@ func (a *Adapter) GetUsage(ctx context.Context, from, to string, opts adapters.Q
 		WHERE h2.ord_ymd BETWEEN $1 AND $2
 		  AND (h2.ord_cd LIKE '6%' OR h2.medfee_cd LIKE '6%' OR h2.user_cd LIKE '6%' OR n.user_cd IS NOT NULL)
 		  AND (`+prescriptionUsageQtySQL+`) > 0
-		  AND ($3 = false OR (COALESCE(h2.inout_gb, '') <> 'O' AND BTRIM(COALESCE(h2.walkout_yn, '')) <> 'Y'))
+		  AND COALESCE(h1.proc_gb, '') NOT IN ('25', '50', '90')
+		  AND COALESCE(h2.dc_yn, '') <> 'Y'
+		  AND ($3 = false OR COALESCE(h2.inout_gb, '') <> 'O')
 		  AND ($4 = false OR COALESCE(NULLIF(h2.inject_path, ''), d.inject_path, '') <> '02')
 		GROUP BY COALESCE(NULLIF(n.user_cd, ''), NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
 	`, from, to, opts.ExcludeOutside, opts.ExcludeInjection)
@@ -234,7 +236,7 @@ func (a *Adapter) GetUsageByCode(ctx context.Context, code, from, to string, opt
 	var item drug.UsageRow
 	err := a.pool.QueryRow(ctx, `
 		SELECT
-			$1 AS code,
+			$1::text AS code,
 			COALESCE(STRING_AGG(DISTINCT COALESCE(NULLIF(h2.medfee_cd, ''), NULLIF(h2.ord_cd, ''), NULLIF(h2.user_cd, '')), ', '), '') AS insurance_code,
 			COALESCE(MAX(COALESCE(NULLIF(d.medfee_nm, ''), NULLIF(h2.medfee_nm, ''))), '') AS name,
 			COALESCE(MAX(COALESCE(d.component, '')), '') AS component,
@@ -246,14 +248,18 @@ func (a *Adapter) GetUsageByCode(ctx context.Context, code, from, to string, opt
 		JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
 		`+drugLookupJoinSQL+`
 		LEFT JOIN (
-			SELECT DISTINCT ord_ymd, ord_no, ord_seq_no, user_cd
+			SELECT ord_ymd, ord_no, ord_seq_no, MAX(user_cd) AS user_cd
 			FROM h8_nims_medi_lines
 			WHERE ord_ymd BETWEEN $2 AND $3
-		) n ON h2.ord_ymd = n.ord_ymd AND h2.ord_no = n.ord_no AND h2.ord_seq_no = n.ord_seq_no AND h2.user_cd = n.user_cd
+			GROUP BY ord_ymd, ord_no, ord_seq_no
+		) n ON h2.ord_ymd = n.ord_ymd AND h2.ord_no = n.ord_no AND h2.ord_seq_no = n.ord_seq_no
+			  AND (n.user_cd = h2.user_cd OR n.user_cd = h2.ord_cd OR n.user_cd = h2.medfee_cd)
 		WHERE h2.ord_ymd BETWEEN $2 AND $3
 		  AND (h2.user_cd = $1 OR h2.ord_cd = $1 OR h2.medfee_cd = $1)
 		  AND (`+prescriptionUsageQtySQL+`) > 0
-		  AND ($4 = false OR (COALESCE(h2.inout_gb, '') <> 'O' AND BTRIM(COALESCE(h2.walkout_yn, '')) <> 'Y'))
+		  AND COALESCE(h1.proc_gb, '') NOT IN ('25', '50', '90')
+		  AND COALESCE(h2.dc_yn, '') <> 'Y'
+		  AND ($4 = false OR COALESCE(h2.inout_gb, '') <> 'O')
 		  AND ($5 = false OR COALESCE(NULLIF(h2.inject_path, ''), d.inject_path, '') <> '02')
 	`, code, from, to, opts.ExcludeOutside, opts.ExcludeInjection).Scan(&item.Code, &item.InsuranceCode, &item.Name, &item.Component, &item.DrugType, &item.UsageQty, &item.OrderCount, &item.Category)
 	if err != nil {
