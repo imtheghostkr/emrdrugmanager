@@ -201,12 +201,14 @@ func (a *Adapter) GetUsage(ctx context.Context, from, to string, opts adapters.Q
 		JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
 		`+drugLookupJoinSQL+`
 		LEFT JOIN (
-			SELECT DISTINCT ord_ymd, ord_no, ord_seq_no, user_cd
+			SELECT ord_ymd, ord_no, ord_seq_no, MAX(user_cd) AS user_cd
 			FROM h8_nims_medi_lines
 			WHERE ord_ymd BETWEEN $1 AND $2
-		) n ON h2.ord_ymd = n.ord_ymd AND h2.ord_no = n.ord_no AND h2.ord_seq_no = n.ord_seq_no AND h2.user_cd = n.user_cd
+			GROUP BY ord_ymd, ord_no, ord_seq_no
+		) n ON h2.ord_ymd = n.ord_ymd AND h2.ord_no = n.ord_no AND h2.ord_seq_no = n.ord_seq_no
+			  AND (n.user_cd = h2.user_cd OR n.user_cd = h2.ord_cd OR n.user_cd = h2.medfee_cd)
 		WHERE h2.ord_ymd BETWEEN $1 AND $2
-		  AND h2.ord_cd LIKE '6%'
+		  AND (h2.ord_cd LIKE '6%' OR h2.medfee_cd LIKE '6%' OR h2.user_cd LIKE '6%' OR n.user_cd IS NOT NULL)
 		  AND (`+prescriptionUsageQtySQL+`) > 0
 		  AND ($3 = false OR (COALESCE(h2.inout_gb, '') <> 'O' AND BTRIM(COALESCE(h2.walkout_yn, '')) <> 'Y'))
 		  AND ($4 = false OR COALESCE(NULLIF(h2.inject_path, ''), d.inject_path, '') <> '02')
