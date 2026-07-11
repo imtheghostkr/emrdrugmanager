@@ -55,25 +55,11 @@ const latestDrugSubquery = `
 	GROUP BY d.medfee_cd
 `
 
-// drugLookupJoinSQL finds master data through every code an eGHIS order can carry.
-// Some managed drugs use a user code for NIMS while the prescription or insurance
-// code is different, so looking up only the first non-empty code can lose the name.
+// drugLookupJoinSQL is shared by usage queries that need the drug master fields.
+// Keep it compatible with the PostgreSQL versions used by deployed eGHIS systems.
 const drugLookupJoinSQL = `
-	LEFT JOIN LATERAL (
-		SELECT d.medfee_nm, d.component, d.drug_gb, d.inject_path
-		FROM (` + latestDrugSubquery + `) d
-		WHERE d.medfee_cd = ANY(ARRAY[
-			NULLIF(h2.ord_cd, ''),
-			NULLIF(h2.medfee_cd, ''),
-			NULLIF(h2.user_cd, '')
-		])
-		ORDER BY CASE
-			WHEN d.medfee_cd = NULLIF(h2.ord_cd, '') THEN 1
-			WHEN d.medfee_cd = NULLIF(h2.medfee_cd, '') THEN 2
-			ELSE 3
-		END
-		LIMIT 1
-	) d ON true
+	LEFT JOIN (` + latestDrugSubquery + `) d
+	  ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
 `
 
 const prescriptionUsageQtySQL = `
