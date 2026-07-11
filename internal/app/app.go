@@ -603,8 +603,8 @@ func (a *App) orderPlan(ctx context.Context, r *http.Request, adapter adapters.D
 	if targetDays <= 0 {
 		targetDays = 45
 	}
-	groupSame := queryBool(r, "group_same", true)
-	truncateOrderQty := queryBool(r, "truncate_order_qty", false)
+	groupSame := queryBool(r, "group_same", false)
+	roundOrderQtyUpTo100 := queryBool(r, "round_order_qty_to_100", true)
 	usage, err := adapter.GetUsage(ctx, from, to, usageQueryOptions(r))
 	if err != nil {
 		return drug.OrderPlan{}, err
@@ -620,7 +620,7 @@ func (a *App) orderPlan(ctx context.Context, r *http.Request, adapter adapters.D
 	usageDays := daysBetween(from, to)
 	plan := inventory.BuildOrderPlanWithOptions(from, to, targetDays, usageDays, usage, stocks, inventory.PlanOptions{
 		GroupSameIngredientDose: groupSame,
-		TruncateOrderQtyTo10:    truncateOrderQty,
+		RoundOrderQtyUpTo100:    roundOrderQtyUpTo100,
 	})
 	return plan, nil
 }

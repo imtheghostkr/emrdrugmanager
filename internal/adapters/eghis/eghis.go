@@ -55,6 +55,27 @@ const latestDrugSubquery = `
 	GROUP BY d.medfee_cd
 `
 
+// drugLookupJoinSQL finds master data through every code an eGHIS order can carry.
+// Some managed drugs use a user code for NIMS while the prescription or insurance
+// code is different, so looking up only the first non-empty code can lose the name.
+const drugLookupJoinSQL = `
+	LEFT JOIN LATERAL (
+		SELECT d.medfee_nm, d.component, d.drug_gb, d.inject_path
+		FROM (` + latestDrugSubquery + `) d
+		WHERE d.medfee_cd = ANY(ARRAY[
+			NULLIF(h2.ord_cd, ''),
+			NULLIF(h2.medfee_cd, ''),
+			NULLIF(h2.user_cd, '')
+		])
+		ORDER BY CASE
+			WHEN d.medfee_cd = NULLIF(h2.ord_cd, '') THEN 1
+			WHEN d.medfee_cd = NULLIF(h2.medfee_cd, '') THEN 2
+			ELSE 3
+		END
+		LIMIT 1
+	) d ON true
+`
+
 const prescriptionUsageQtySQL = `
 	CASE
 		WHEN COALESCE(NULLIF(h2.inject_path, ''), d.inject_path, '') = '02' THEN
@@ -182,9 +203,9 @@ func (a *Adapter) GetDrug(ctx context.Context, code string) (drug.Drug, error) {
 func (a *Adapter) GetUsage(ctx context.Context, from, to string, opts adapters.QueryOptions) ([]drug.UsageRow, error) {
 	rows, err := a.pool.Query(ctx, `
 		SELECT
-			COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd) AS code,
+			COALESCE(NULLIF(n.user_cd, ''), NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd) AS code,
 			COALESCE(STRING_AGG(DISTINCT COALESCE(NULLIF(h2.medfee_cd, ''), NULLIF(h2.ord_cd, ''), NULLIF(h2.user_cd, '')), ', '), '') AS insurance_code,
-			MAX(COALESCE(d.medfee_nm, h2.medfee_nm, '')) AS name,
+			MAX(COALESCE(NULLIF(d.medfee_nm, ''), NULLIF(h2.medfee_nm, ''), '')) AS name,
 			MAX(COALESCE(d.component, '')) AS component,
 			MAX(COALESCE(d.drug_gb, '')) AS drug_gb,
 			SUM(`+prescriptionUsageQtySQL+`) AS usage_qty,
@@ -192,18 +213,18 @@ func (a *Adapter) GetUsage(ctx context.Context, from, to string, opts adapters.Q
 			CASE WHEN MAX(n.user_cd) IS NULL THEN '일반약' ELSE '향정/마약류' END AS category
 		FROM h2opd_doct_ord h2
 		JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
-		LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
+		`+drugLookupJoinSQL+`
 		LEFT JOIN (
 			SELECT DISTINCT ord_ymd, ord_no, ord_seq_no, user_cd
 			FROM h8_nims_medi_lines
 			WHERE ord_ymd BETWEEN $1 AND $2
-		) n ON h2.ord_ymd = n.ord_ymd AND h2.ord_no = n.ord_no AND h2.ord_seq_no = n.ord_seq_no AND h2.ord_cd = n.user_cd
+		) n ON h2.ord_ymd = n.ord_ymd AND h2.ord_no = n.ord_no AND h2.ord_seq_no = n.ord_seq_no AND h2.user_cd = n.user_cd
 		WHERE h2.ord_ymd BETWEEN $1 AND $2
 		  AND h2.ord_cd LIKE '6%'
 		  AND (`+prescriptionUsageQtySQL+`) > 0
 		  AND ($3 = false OR (COALESCE(h2.inout_gb, '') <> 'O' AND BTRIM(COALESCE(h2.walkout_yn, '')) <> 'Y'))
 		  AND ($4 = false OR COALESCE(NULLIF(h2.inject_path, ''), d.inject_path, '') <> '02')
-		GROUP BY COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
+		GROUP BY COALESCE(NULLIF(n.user_cd, ''), NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
 	`, from, to, opts.ExcludeOutside, opts.ExcludeInjection)
 	if err != nil {
 		return nil, err
@@ -227,7 +248,7 @@ func (a *Adapter) GetUsageByCode(ctx context.Context, code, from, to string, opt
 		SELECT
 			$1 AS code,
 			COALESCE(STRING_AGG(DISTINCT COALESCE(NULLIF(h2.medfee_cd, ''), NULLIF(h2.ord_cd, ''), NULLIF(h2.user_cd, '')), ', '), '') AS insurance_code,
-			COALESCE(MAX(COALESCE(d.medfee_nm, h2.medfee_nm, '')), '') AS name,
+			COALESCE(MAX(COALESCE(NULLIF(d.medfee_nm, ''), NULLIF(h2.medfee_nm, ''))), '') AS name,
 			COALESCE(MAX(COALESCE(d.component, '')), '') AS component,
 			COALESCE(MAX(COALESCE(d.drug_gb, '')), '') AS drug_gb,
 			COALESCE(SUM(`+prescriptionUsageQtySQL+`), 0) AS usage_qty,
@@ -235,7 +256,7 @@ func (a *Adapter) GetUsageByCode(ctx context.Context, code, from, to string, opt
 			CASE WHEN MAX(n.user_cd) IS NULL THEN '일반약' ELSE '향정/마약류' END AS category
 		FROM h2opd_doct_ord h2
 		JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
-		LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
+		`+drugLookupJoinSQL+`
 		LEFT JOIN (
 			SELECT DISTINCT ord_ymd, ord_no, ord_seq_no, user_cd
 			FROM h8_nims_medi_lines
@@ -294,9 +315,26 @@ func (a *Adapter) attachStockMetadata(ctx context.Context, stocks map[string]dru
 		return nil
 	}
 	rows, err := a.pool.Query(ctx, `
-		SELECT medfee_cd, medfee_nm, component, drug_gb
-		FROM (`+latestDrugSubquery+`) d
-		WHERE medfee_cd = ANY($1::text[])
+		WITH code_mapping AS (
+			SELECT medfee_cd AS code, medfee_cd AS master_code
+			FROM h0drug_stock
+			WHERE medfee_cd = ANY($1::text[]) AND COALESCE(medfee_cd, '') <> ''
+			UNION
+			SELECT user_cd AS code, COALESCE(NULLIF(medfee_cd, ''), user_cd) AS master_code
+			FROM h0drug_stock
+			WHERE user_cd = ANY($1::text[]) AND COALESCE(user_cd, '') <> ''
+			UNION
+			SELECT medfee_cd AS code, medfee_cd AS master_code
+			FROM (`+latestDrugSubquery+`) d
+			WHERE medfee_cd = ANY($1::text[])
+		)
+		SELECT m.code,
+		       COALESCE(MAX(NULLIF(d.medfee_nm, '')), '') AS medfee_nm,
+		       COALESCE(MAX(NULLIF(d.component, '')), '') AS component,
+		       COALESCE(MAX(NULLIF(d.drug_gb, '')), '') AS drug_gb
+		FROM code_mapping m
+		LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = m.master_code
+		GROUP BY m.code
 	`, codes)
 	if err != nil {
 		return err

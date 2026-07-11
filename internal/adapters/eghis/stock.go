@@ -85,7 +85,7 @@ func (a *Adapter) generalStocks(ctx context.Context, codes []string) (map[string
 			       `+prescriptionUsageQtySQL+` AS usage_qty
 			FROM h2opd_doct_ord h2
 			JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
-			LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
+			`+drugLookupJoinSQL+`
 			WHERE h2.ord_cd = ANY($1::text[])
 			  AND h2.inout_gb = 'I'
 			  AND h2.ord_ymd >= $2
@@ -97,7 +97,7 @@ func (a *Adapter) generalStocks(ctx context.Context, codes []string) (map[string
 			       `+prescriptionUsageQtySQL+` AS usage_qty
 			FROM h2opd_doct_ord h2
 			JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
-			LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
+			`+drugLookupJoinSQL+`
 			WHERE h2.medfee_cd = ANY($1::text[])
 			  AND h2.inout_gb = 'I'
 			  AND h2.ord_ymd >= $2
@@ -109,7 +109,7 @@ func (a *Adapter) generalStocks(ctx context.Context, codes []string) (map[string
 			       `+prescriptionUsageQtySQL+` AS usage_qty
 			FROM h2opd_doct_ord h2
 			JOIN h1opdin h1 ON h1.recept_no = h2.recept_no
-			LEFT JOIN (`+latestDrugSubquery+`) d ON d.medfee_cd = COALESCE(NULLIF(h2.ord_cd, ''), NULLIF(h2.medfee_cd, ''), h2.user_cd)
+			`+drugLookupJoinSQL+`
 			WHERE h2.user_cd = ANY($1::text[])
 			  AND h2.inout_gb = 'I'
 			  AND h2.ord_ymd >= $2

@@ -25,8 +25,8 @@ func TestBuildOrderPlanCalculatesShortageAndUrgency(t *testing.T) {
 	if row.TargetStockQty != 135 {
 		t.Fatalf("target stock = %v, want 135", row.TargetStockQty)
 	}
-	if row.RecommendedOrderQty != 125 {
-		t.Fatalf("recommended = %v, want 125", row.RecommendedOrderQty)
+	if row.RecommendedOrderQty != 200 {
+		t.Fatalf("recommended = %v, want 200", row.RecommendedOrderQty)
 	}
 	if row.Urgency != "긴급" {
 		t.Fatalf("urgency = %q, want 긴급", row.Urgency)
@@ -54,6 +54,45 @@ func TestBuildOrderPlanSufficientStock(t *testing.T) {
 	}
 }
 
+func TestBuildOrderPlanKeepsSameIngredientProductsSeparateByDefault(t *testing.T) {
+	usage := []drug.UsageRow{
+		{Code: "RIVOTRIL", Name: "리보트릴정 0.5mg", Component: "클로나제팜", Category: "향정/마약류", UsageQty: 30},
+		{Code: "GENERIC", Name: "클로나제팜정 0.5mg", Component: "클로나제팜", Category: "향정/마약류", UsageQty: 30},
+	}
+	stocks := map[string]drug.StockBalance{
+		"RIVOTRIL": {Code: "RIVOTRIL", CurrentStockQty: 0, Source: "NIMS계산"},
+		"GENERIC":  {Code: "GENERIC", CurrentStockQty: 1000, Source: "NIMS계산"},
+	}
+
+	plan := BuildOrderPlan("20260501", "20260530", 45, 30, usage, stocks)
+	if len(plan.Rows) != 2 {
+		t.Fatalf("rows = %d, want 2", len(plan.Rows))
+	}
+	found := false
+	for _, row := range plan.Rows {
+		if row.MedfeeCode != "RIVOTRIL" {
+			continue
+		}
+		found = true
+		if row.RecommendedOrderQty != 100 {
+			t.Fatalf("Rivotril recommended order = %d, want 100", row.RecommendedOrderQty)
+		}
+	}
+	if !found {
+		t.Fatal("Rivotril row was not found")
+	}
+}
+
+func TestBuildOrderPlanRoundsOrderQuantityUpTo100(t *testing.T) {
+	usage := []drug.UsageRow{{Code: "A", Name: "약품A 10mg", Component: "성분", Category: "일반약", UsageQty: 30}}
+	stocks := map[string]drug.StockBalance{"A": {Code: "A", CurrentStockQty: 1}}
+
+	plan := BuildOrderPlan("20260501", "20260530", 45, 30, usage, stocks)
+	if plan.Rows[0].RecommendedOrderQty != 100 {
+		t.Fatalf("recommended order = %d, want 100", plan.Rows[0].RecommendedOrderQty)
+	}
+}
+
 func TestBuildOrderPlanOptions(t *testing.T) {
 	usage := []drug.UsageRow{
 		{Code: "A", Name: "약품A 10mg", Component: "성분", Category: "일반약", UsageQty: 90, OrderCount: 1},
@@ -75,13 +114,13 @@ func TestBuildOrderPlanOptions(t *testing.T) {
 		t.Fatalf("product names = %v, want 2 names", grouped.Rows[0].ProductNames)
 	}
 
-	ungrouped := BuildOrderPlanWithOptions("20260501", "20260530", 45, 30, usage, stocks, PlanOptions{GroupSameIngredientDose: false, TruncateOrderQtyTo10: true})
+	ungrouped := BuildOrderPlanWithOptions("20260501", "20260530", 45, 30, usage, stocks, PlanOptions{GroupSameIngredientDose: false, RoundOrderQtyUpTo100: true})
 	if len(ungrouped.Rows) != 2 {
 		t.Fatalf("ungrouped rows = %d, want 2", len(ungrouped.Rows))
 	}
 	for _, row := range ungrouped.Rows {
-		if row.RecommendedOrderQty%10 != 0 {
-			t.Fatalf("recommended order %d is not truncated to 10-unit", row.RecommendedOrderQty)
+		if row.RecommendedOrderQty%100 != 0 {
+			t.Fatalf("recommended order %d is not rounded to 100 units", row.RecommendedOrderQty)
 		}
 	}
 }

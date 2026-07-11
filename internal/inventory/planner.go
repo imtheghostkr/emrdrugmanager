@@ -13,11 +13,11 @@ var dosageRe = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*(mg|㎎|g|mcg|μg|ug|ml
 
 type PlanOptions struct {
 	GroupSameIngredientDose bool
-	TruncateOrderQtyTo10    bool
+	RoundOrderQtyUpTo100    bool
 }
 
 func BuildOrderPlan(from, to string, targetDays, usageDays int, usage []drug.UsageRow, stocks map[string]drug.StockBalance) drug.OrderPlan {
-	return BuildOrderPlanWithOptions(from, to, targetDays, usageDays, usage, stocks, PlanOptions{GroupSameIngredientDose: true})
+	return BuildOrderPlanWithOptions(from, to, targetDays, usageDays, usage, stocks, PlanOptions{RoundOrderQtyUpTo100: true})
 }
 
 func BuildOrderPlanWithOptions(from, to string, targetDays, usageDays int, usage []drug.UsageRow, stocks map[string]drug.StockBalance, opts PlanOptions) drug.OrderPlan {
@@ -79,8 +79,8 @@ func BuildOrderPlanWithOptions(from, to string, targetDays, usageDays int, usage
 		item.TargetStockQty = round1(item.DailyUsageQty * float64(targetDays))
 		item.ShortageQty = round1(math.Max(item.TargetStockQty-item.CurrentStockQty, 0))
 		item.RecommendedOrderQty = int(math.Ceil(item.ShortageQty))
-		if opts.TruncateOrderQtyTo10 {
-			item.RecommendedOrderQty = (item.RecommendedOrderQty / 10) * 10
+		if opts.RoundOrderQtyUpTo100 && item.RecommendedOrderQty > 0 {
+			item.RecommendedOrderQty = ((item.RecommendedOrderQty + 99) / 100) * 100
 		}
 		if item.DailyUsageQty > 0 {
 			item.CoverageDays = round1(item.CurrentStockQty / item.DailyUsageQty)

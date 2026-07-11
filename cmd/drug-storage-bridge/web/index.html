@@ -138,10 +138,10 @@
           <label>비축 필요일 <input id="targetDays" name="targetDays" type="number" value="45" inputmode="numeric" autocomplete="off" /></label>
         </div>
         <div class="checks">
-          <label><input id="groupSameDose" type="checkbox" checked /> 동일성분용량 합산</label>
+          <label><input id="groupSameDose" type="checkbox" /> 동일성분용량 합산</label>
           <label><input id="planExcludeOutside" type="checkbox" /> 원외약 제외</label>
           <label><input id="planExcludeInjection" type="checkbox" /> 주사제 제외</label>
-          <label><input id="truncateOrderQty" type="checkbox" /> 필요수량 10단위 절삭</label>
+          <label><input id="roundOrderQtyTo100" type="checkbox" checked /> 필요수량 100단위 올림</label>
         </div>
         <div class="actions">
           <button id="loadPlanBtn" class="primary">계산</button>

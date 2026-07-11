@@ -137,7 +137,7 @@ function planQuery() {
   parts.push(`group_same=${$("groupSameDose").checked ? "true" : "false"}`);
   appendOption(parts, "planExcludeOutside", "exclude_outside");
   appendOption(parts, "planExcludeInjection", "exclude_injection");
-  parts.push(`truncate_order_qty=${$("truncateOrderQty").checked ? "true" : "false"}`);
+  parts.push(`round_order_qty_to_100=${$("roundOrderQtyTo100").checked ? "true" : "false"}`);
   return parts.join("&");
 }
 
@@ -345,7 +345,7 @@ document.addEventListener("click", async (event) => {
 
   if (event.target.id === "loadPlanBtn") {
     const result = await api(`/api/inventory/order-plan?${planQuery()}`);
-    const rows = result.rows || [];
+    const rows = (result.rows || []).filter(row => Number(row.recommended_order_qty) > 0);
     $("planSummary").innerHTML = `
       <div class="card"><span>주문 필요</span><strong>${result.summary?.need_count ?? 0}</strong></div>
       <div class="card"><span>긴급</span><strong>${result.summary?.urgent_count ?? 0}</strong></div>

@@ -145,7 +145,8 @@ GET  /api/inventory/order-plan.xlsx?from=YYYYMMDD&to=YYYYMMDD&target_days=45
 
 Usage and order-plan endpoints also accept:
 
-- `group_same=true` to combine rows by same ingredient and dose.
+- `group_same=true` to combine rows by same ingredient and dose (off by default so product-level stock is not pooled).
+- `round_order_qty_to_100=true` to round each non-zero recommended order quantity up to the next 100 units (on by default).
 - `exclude_outside=true` to exclude outside-prescription drugs.
 - `exclude_injection=true` to exclude injection drugs.
 
