@@ -1,4 +1,4 @@
-const state = { setupToken: "", configured: false };
+const state = { setupToken: "", configured: false, stockRows: [] };
 
 const $ = (id) => document.getElementById(id);
 
@@ -186,6 +186,21 @@ const usageColumns = [
   { key: "order_count", label: "처방건수" },
 ];
 
+function renderStocks() {
+  const query = $("stockQuery").value.trim().toLocaleLowerCase("ko-KR");
+  const rows = query
+    ? state.stockRows.filter(row => [row.code, row.name, row.component]
+      .some(value => String(value ?? "").toLocaleLowerCase("ko-KR").includes(query)))
+    : state.stockRows;
+  const status = query ? `${rows.length}개 표시 / 전체 ${state.stockRows.length}개` : `${rows.length}개 코드 조회됨`;
+  setText("stocksStatus", status);
+  renderTable($("stocksResults"), rows, stockColumns);
+}
+
+document.addEventListener("input", event => {
+  if (event.target.id === "stockQuery" && state.stockRows.length > 0) renderStocks();
+});
+
 document.addEventListener("click", async (event) => {
   const tab = event.target.closest("[data-tab]");
   if (tab) {
@@ -250,8 +265,10 @@ document.addEventListener("click", async (event) => {
     $("stocksResults").innerHTML = "";
     try {
       const rows = await api("/api/stocks");
-      setText("stocksStatus", `${rows.length}개 코드 조회됨`);
-      renderTable($("stocksResults"), rows, stockColumns);
+      state.stockRows = rows;
+      $("stockQuery").disabled = false;
+      $("stockQuery").placeholder = "약품명, 성분명, 코드 검색";
+      renderStocks();
     } catch (err) {
       setText("stocksStatus", err.message);
     }
